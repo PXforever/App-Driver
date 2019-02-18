@@ -1,0 +1,16 @@
+#
+# Touchscreen driver configuration
+#
+
+config TOUCHSCREEN_EX3XX
+	bool "exc3xx for Mediatek package"
+	default n
+	help
+	Say Y here if you have GT9271 touch panel GTP_DRIVER_SEND_CFG.
+
+	If unsure, say N.
+
+	To compile this dirver as a module, choose M here: the
+	module will be called.
+
+
