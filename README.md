@@ -1,5 +1,5 @@
 # App-Driver
-a app and driver code for andoird engineer
+an app and driver code for android engineer
 
 /----------------------------------------------------/
 项目简介：
