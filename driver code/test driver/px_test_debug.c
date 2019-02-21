@@ -230,15 +230,15 @@ int my_switch2(bool status)
 }
 
 debug_list my_debug_list[] = {
-	{{"parame1","P(i)",&a},NULL},
-	{{"parame2","P(c)",&b},NULL},
-	{{"func1","R(i)",&my_func},NULL},
-	{{"print_parame","R(v)",&print_parame},NULL},
-	{{"sw1","S(p)",&my_swtich1},NULL},
-	{{"sw2","S(f)",&my_switch2},NULL},
-	{{"parame3","P(c)",&b},NULL},
-	{{"parame4","P(c)",&b},NULL},
-	{{"parame5","P(c)",&b},NULL},
+	{{"parame1","P(i)",{&a}},NULL},
+	{{"parame2","P(c)",{&b}},NULL},
+	{{"func1","R(i)",{&my_func}},NULL},
+	{{"print_parame","R(v)",{&print_parame}},NULL},
+	{{"sw1","S(p)",{&my_swtich1}},NULL},
+	{{"sw2","S(f)",{&my_switch2}},NULL},
+	{{"parame3","P(c)",{&b}},NULL},
+	{{"parame4","P(c)",{&b}},NULL},
+	{{"parame5","P(c)",{&b}},NULL},
 };
 ENGINEER_DEBUG_INIT(px_test,my_debug_list)
 

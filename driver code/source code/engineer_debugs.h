@@ -60,6 +60,9 @@ extern int engineer_debugs_get_status(const debug_list *head, short num);
 
 extern int engineer_debugs_init(char *device_name, const struct file_operations *ops);
 
+#define __engineer_debugs_init(name) engineer_debugs_init( #name, &engineer_debugs_ops_##name)
+
+
 #define ENGINEER_DEBUG_INIT(device_name, list)	                                                                                                \
 struct engineer_debug_info debug_info_##device_name = {																							\
 	.run_list = NULL,																															\
@@ -160,6 +163,7 @@ static ssize_t engineer_debugs_read_##device_name(struct file *file,	           
 				      char __user *ubuf, size_t count, loff_t *ppos)	                                                                        \
 {																		                                                                        \
 	char *buffer;																																\
+	int ret = -1;																																\
 	printk("[px_test]enter %s,run:%d,parame:%d,switchs:%d,transform:%d,info:%d\n",__func__, debug_info_##device_name.run_num, debug_info_##device_name.parame_num, debug_info_##device_name.switchs_num, debug_info_##device_name.transform_num, debug_info_##device_name.info_num);\
 	printk("read %s \n", ubuf);																													\
 	if(!strcmp( "option info", ubuf))																											\
@@ -167,7 +171,8 @@ static ssize_t engineer_debugs_read_##device_name(struct file *file,	           
 		printk("you want read option info\n");																									\
 		buffer = engineer_debugs_get_item_info(#device_name, &debug_info_##device_name);														\
 		printk("[px_test]buffer[%u]:%s", (unsigned int)strlen(buffer), buffer);																	\
-		copy_to_user(ubuf,buffer,EN_DE_READ_BUF_SIZE);                                                                                      	\
+		ret = copy_to_user(ubuf,buffer,EN_DE_READ_BUF_SIZE);                                                                                    \
+		if(ret < 0) return -1;																													\
 		kfree(buffer);																															\
 	}																																			\
 	else																																		\

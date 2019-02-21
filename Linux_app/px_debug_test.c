@@ -7,6 +7,7 @@
 #include <string.h> 
 #include <linux/ioctl.h>
 #include <unistd.h>
+#include <dirent.h>
 //#include <linux/engineer_debugs.h>
 
 //该文件在没有创建目标文件时会自动创建文件
@@ -38,7 +39,7 @@ typedef struct engineer_debug_info{
 }engineer_debug_info;
 
 
-#define DEVICEPATH "/sys/kernel/debug/engineer_debugs/px_test"
+#define DEVICEPATH "/sys/kernel/debug/engineer_debugs/\0"
 
 #define GET_INFO "option info\0"
 
@@ -53,55 +54,43 @@ typedef struct engineer_debug_info{
 engineer_debug_info *my_engineer_debug_info;
 int device_fd = -1; int config_fd = -1;
 
-int engineer_debug_init(void);
+int engineer_debug_init(char *device_name);
 unsigned int get_cmd_form_property_laber(char property, char laber, unsigned int cmd);
 engineer_debug_info* get_option_info(const char *raw_data);
 void printf_debug_list(const debug_list *debug_list_head);
 int get_laber_list_num(char *laber, const debug_list *debug_list_head);
 int get_status( char property, char *laber);
+int readFileList(char *basePath);
+int recognize_command_and_run(char *cmd);
 
 int main(int argc, char * const argv[])
 {
 
     int ret = 0;
-	printf("enter mian\n");
-	if(engineer_debug_init() < 0)
+	char device_name[25];
+	char cmd_line[30] = "\0";
+	printf("welcome to engineer debug driver!\n");
+	readFileList(DEVICEPATH);
+	printf("which device do you want chose?\n>");
+	scanf("%s", device_name);
+	if(engineer_debug_init( device_name) < 0)
 		exit(1);
 	
-	
-	printf("get sw1 status is :%s\n", get_status('S', "sw1")?"ON":"OFF");
-
-	
-	ret = ioctl(device_fd, get_cmd_form_property_laber('P', 1, 00), 20);
-	ret = ioctl(device_fd, get_cmd_form_property_laber('P', 2, 00), 55);
-	
-	ret = ioctl(device_fd, get_cmd_form_property_laber('S', 2, 1), 2);
-	ret = ioctl(device_fd, get_cmd_form_property_laber('S', 2, 0), 2);
-	
-	ret = ioctl(device_fd, get_cmd_form_property_laber('S', 1, 0), 2);
-	printf("get sw1 status is :%s\n", get_status('S', "sw1")?"ON":"OFF");
-	
-	ret = ioctl(device_fd, get_cmd_form_property_laber('S', 1, 1), 2);
-	printf("get sw1 status is :%s\n", get_status('S', "sw1")?"ON":"OFF");
-	
-	ret = ioctl(device_fd, get_cmd_form_property_laber('P', 2, 00), 11);
-	printf("get parame2 status is :%d\n", get_status('P', "parame2"));
-	
-	ret = ioctl(device_fd, get_cmd_form_property_laber('P', 2, 00), 22);
-	printf("get parame2 status is :%d\n", get_status('P', "parame2"));
-	
-	ret = ioctl(device_fd, get_cmd_form_property_laber('P', 2, 00), 33);
-	printf("get parame2 status is :%d\n", get_status('P', "parame2"));
-	
-	ret = ioctl(device_fd, get_cmd_form_property_laber('R', 2, 00), 2);
-	if(ret < 0)
+	while(1)
 	{
-		printf("ioctl failed:%d\n", ret); 
+		printf("please input command\n");
+		memset( cmd_line, '\0', 30);
+		scanf( "%[^\n]", cmd_line);
+		 scanf("%*c"); 
+		if(!strcmp( cmd_line, "quit")) break;
+		ret = recognize_command_and_run(cmd_line);
+		if(ret < 0)
+		{
+			printf("cmd failed:%d\n", ret); 
+		}
 	}
 
-	//printf("find sw2 num :%d\n", get_list_num("sw2", my_engineer_debug_info.switch_list));
-	//printf("find parame num :%d\n", get_list_num("parame4", my_engineer_debug_info.parame_list));
-	//printf("find run num :%d\n", get_list_num("print_parame", my_engineer_debug_info.run_list));
+
 	printf("ioctl successful:%d\n", ret); 	
 	close(device_fd);
 	return 0;
@@ -109,24 +98,28 @@ int main(int argc, char * const argv[])
 }
 
 
-int engineer_debug_init(void)
+int engineer_debug_init(char *device_name)
 {
 	char get_parmer[200];
+	char device_path[55] = DEVICEPATH;
 	stpcpy( get_parmer, GET_INFO);
-	device_fd = open(DEVICEPATH,O_RDWR);
-	printf("device_fd:%d\n", device_fd);
+	strcat( device_path, device_name);
+	device_fd = open( device_path, O_RDWR);
+	//printf("device_fd:%d\n", device_fd);
 	if(device_fd < 0)
 	{
 		printf("device open failed...\n");
 		return -1;
 	}
-	printf("open file successful!\n");
+	printf("open %s successful!\n", device_name);
 	if(read(device_fd, get_parmer, 200 ) < 0)
 	{
 		printf("read failed...\n"); 
 		return -1;
 	}
-	//printf("%s\n", get_parmer);
+	printf("----------------------command list----------------------\n");
+	printf("%s\n", get_parmer);
+	printf("--------------------------------------------------------\n");
 	my_engineer_debug_info = get_option_info( get_parmer);
 	if(my_engineer_debug_info == NULL)
 		return -1;
@@ -176,16 +169,47 @@ int get_status( char property, char *laber)
 	return ret;
 }
 
+//识别指令并执行
+int recognize_command_and_run(char *cmd)
+{
+	//char list_num;
+	//printf("enter %s,cmd:%s\n", __func__, cmd);
+	int cmd_num = 0;
+	if(!strncmp( cmd, "open ", 5))
+	{
+		cmd_num = cmd[6] - '0';
+		ioctl(device_fd, get_cmd_form_property_laber( cmd[5], cmd_num, 1), 2);
+	}
+	else if(!strncmp( cmd, "close ", 6))
+	{
+		cmd_num = cmd[7] - '0';
+		ioctl(device_fd, get_cmd_form_property_laber( cmd[6], cmd_num, 0), 2);
+	}
+	else if(!strncmp( cmd, "run ", 4))
+	{
+		cmd_num = cmd[5] - '0';
+		ioctl(device_fd, get_cmd_form_property_laber( cmd[4], cmd_num, 1), 2);
+	}
+	else if(!strncmp( cmd, "get ", 4))
+	{
+		printf("get ccor test switch status is :%s\n", get_status( cmd[4], "ccor test switch")?"ON":"OFF");
+	}
+	else 
+		printf("bad cmd\n");
+	return 0;
+}
+
+
 //目标字符串至少两个。
 char* find_string(const char* source, char* goal)		//在字符串中寻找某串字符，返回寻找到源数据中目标字段的最末尾指针,无则返回NULL
 {
-	char *ptr_pos = source;
+	char *ptr_pos = (char *)source;
 	unsigned char state = 0;
 	int i = 1;
 	int goal_len = strlen(goal);
 	//printf("enter find_string\n");
 	if(source == NULL||goal == NULL)
-		return source;
+		return (char *)source;
 	
 	while(ptr_pos != NULL)
 	{
@@ -286,7 +310,7 @@ engineer_debug_info* get_option_info(const char *raw_data)
 	string_switch_num++;
 	string_transform_num++;
 	string_info_num++;
-	printf("get pre option num:R=%c,P=%c,S=%c,T=%c,I=%c\n", *string_run_num, *string_parame_num, *string_switch_num, *string_transform_num, *string_info_num);
+	//printf("get pre option num:R=%c,P=%c,S=%c,T=%c,I=%c\n", *string_run_num, *string_parame_num, *string_switch_num, *string_transform_num, *string_info_num);
 	loacl_engineer_debug_info.run_num = *string_run_num - '0';
 	loacl_engineer_debug_info.parame_num = *string_parame_num - '0';
 	loacl_engineer_debug_info.switchs_num = *string_switch_num - '0';
@@ -431,7 +455,7 @@ engineer_debug_info* get_option_info(const char *raw_data)
 //打印出一张链表所有的laber
 void printf_debug_list(const debug_list *debug_list_head)
 {
-	debug_list *local_debug_list = debug_list_head;
+	debug_list *local_debug_list = (debug_list *)debug_list_head;
 	int list_length = 0;
 	//printf("enter %s\n",__func__);
 	while(local_debug_list != NULL)
@@ -446,7 +470,7 @@ void printf_debug_list(const debug_list *debug_list_head)
 //通过属性和laber来获取在链表中的序列
 int get_laber_list_num(char *laber, const debug_list *debug_list_head)
 {
-	debug_list *local_debug_list = debug_list_head;
+	debug_list *local_debug_list = (debug_list *)debug_list_head;
 	int list_length = 0;
 	//printf("enter %s\n",__func__);
 	while(local_debug_list != NULL)
@@ -462,7 +486,7 @@ int get_laber_list_num(char *laber, const debug_list *debug_list_head)
 //获得某个链表中的第x个节点
 debug_list* get_list_x_node(const debug_list *head, int num)
 {
-	debug_list *aim = head;
+	debug_list *aim = (debug_list *)head;
 	//为0或小于0处理----
 	num--;																	//列表从1开始，最小为1
 	printf("[px_test]enter %s\n",__func__);
@@ -471,6 +495,49 @@ debug_list* get_list_x_node(const debug_list *head, int num)
 		aim = head->next;
 	}
 	return aim;
+}
+
+/**************************************************************
+函数功能：readFileList,遍历一个文件夹内的所有文件，返回文件个数
+输入参数：
+输出参数：文件个数
+备    注：
+****************************************************/
+int readFileList(char *basePath)
+{
+    DIR *dir;
+    struct dirent *ptr;
+	int file_num = 0;
+    char base[1000];
+
+    if ((dir=opendir(basePath)) == NULL)
+    {
+        perror("Open dir error...");
+        exit(1);
+    }
+
+    while ((ptr=readdir(dir)) != NULL)
+    {
+        if(strcmp(ptr->d_name,".")==0 || strcmp(ptr->d_name,"..")==0)    ///current dir OR parrent dir
+            continue;
+        else if(ptr->d_type == 8)    ///file
+		{
+            printf("device[%d]:%s\n", file_num, ptr->d_name);
+			file_num++;
+		}
+        else if(ptr->d_type == 10)    ///link file
+            printf("d_name:%s%s\n",basePath,ptr->d_name);
+        else if(ptr->d_type == 4)    ///dir
+        {
+            memset(base,'\0',sizeof(base));
+            strcpy(base,basePath);
+            strcat(base,"/");
+            strcat(base,ptr->d_name);
+            readFileList(base);
+        }
+    }
+    closedir(dir);
+    return file_num;
 }
 
 
