@@ -9,7 +9,7 @@ debug_list* engineer_debugs_find_option(const debug_list *head,short num)
 	printk("[px_test]enter %s\n",__func__);
 	while(num--)
 	{
-		aim = head->next;
+		aim = aim->next;
 	}
 	return aim;
 }

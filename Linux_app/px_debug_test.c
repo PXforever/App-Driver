@@ -62,6 +62,7 @@ int get_laber_list_num(char *laber, const debug_list *debug_list_head);
 int get_status( char property, char *laber);
 int readFileList(char *basePath);
 int recognize_command_and_run(char *cmd);
+int get_status_from_num( char property, int num);
 
 int main(int argc, char * const argv[])
 {
@@ -70,28 +71,32 @@ int main(int argc, char * const argv[])
 	char device_name[25];
 	char cmd_line[30] = "\0";
 	printf("welcome to engineer debug driver!\n");
+CHOSE_DEVICE:
 	readFileList(DEVICEPATH);
-	printf("which device do you want chose?\n>");
-	scanf("%s", device_name);
+	printf("which device do you want chose? q exit\n>");
+	scanf( "%[^\n]", device_name);
+	scanf("%*c"); 
+	if(!strcmp( cmd_line, "q")) exit(1);
 	if(engineer_debug_init( device_name) < 0)
 		exit(1);
 	
 	while(1)
 	{
-		printf("please input command\n");
+		printf("please input command,quit is exit program,back is cback to chose device\n>");
 		memset( cmd_line, '\0', 30);
 		scanf( "%[^\n]", cmd_line);
-		 scanf("%*c"); 
+		scanf("%*c"); 
 		if(!strcmp( cmd_line, "quit")) break;
+		if(!strcmp( cmd_line, "back")) { close(device_fd); goto CHOSE_DEVICE;}
+		//if(!strcmp( cmd_line, "exit")) { close(device_fd); goto CLOSE_PROGRAM;}
 		ret = recognize_command_and_run(cmd_line);
 		if(ret < 0)
 		{
 			printf("cmd failed:%d\n", ret); 
 		}
 	}
-
-
 	printf("ioctl successful:%d\n", ret); 	
+CLOSE_PROGRAM:
 	close(device_fd);
 	return 0;
 
@@ -161,7 +166,34 @@ int get_status( char property, char *laber)
 	}
 	local_parmer[1] = 0;	//保留
 	
-	ret = read(device_fd, local_parmer, 3);
+	ret = read(device_fd, local_parmer, 3);	
+	if(ret < 0)
+	{
+		printf("read failed:%d\n", ret); 
+	}
+	return ret;
+}
+
+//读取状态,通过属性和序号
+//返回值:一个数值
+//参数:property-类型，num-序列号。这里应该使用重载，使得返回值可以是任何值，比如int char string
+int get_status_from_num( char property, int num)
+{
+	char local_parmer[4] = "000"; //local_parmer[0]-属性号, local_parmer[1]-保留, local_parmer[2]-表中的序号
+	int ret = -1;
+	//stpcpy( local_parmer, "312");
+	switch(property)
+	{
+		case 'R':	local_parmer[0] = 1;local_parmer[2] = num;break;
+		case 'P':	local_parmer[0] = 2;local_parmer[2] = num;break;
+		case 'S':	local_parmer[0] = 3;local_parmer[2] = num;break;
+		case 'T':	local_parmer[0] = 4;local_parmer[2] = num;break;
+		case 'I':	local_parmer[0] = 5;local_parmer[2] = num;break;
+		default:	local_parmer[0] = 0;break;
+	}
+	local_parmer[1] = 0;	//保留
+	
+	ret = read(device_fd, local_parmer, 3);	//BUG,使用一个char去接受序列号会产生只能有255个数据大小
 	if(ret < 0)
 	{
 		printf("read failed:%d\n", ret); 
@@ -170,33 +202,71 @@ int get_status( char property, char *laber)
 }
 
 //识别指令并执行
+//BUG,使用一个char去接受序列号会产生只能有9个数据大小
 int recognize_command_and_run(char *cmd)
 {
-	//char list_num;
+	int ret = -1;
+	int value = -1;		//默认值-1
 	//printf("enter %s,cmd:%s\n", __func__, cmd);
 	int cmd_num = 0;
 	if(!strncmp( cmd, "open ", 5))
 	{
 		cmd_num = cmd[6] - '0';
-		ioctl(device_fd, get_cmd_form_property_laber( cmd[5], cmd_num, 1), 2);
+		ret = ioctl(device_fd, get_cmd_form_property_laber( cmd[5], cmd_num, 1), 2);
+		if(ret < 0) printf("open failed\n");
 	}
 	else if(!strncmp( cmd, "close ", 6))
 	{
 		cmd_num = cmd[7] - '0';
-		ioctl(device_fd, get_cmd_form_property_laber( cmd[6], cmd_num, 0), 2);
+		ret = ioctl(device_fd, get_cmd_form_property_laber( cmd[6], cmd_num, 0), 2);
+		if(ret < 0) printf("close failed\n");
 	}
 	else if(!strncmp( cmd, "run ", 4))
 	{
 		cmd_num = cmd[5] - '0';
-		ioctl(device_fd, get_cmd_form_property_laber( cmd[4], cmd_num, 1), 2);
+		ret = ioctl(device_fd, get_cmd_form_property_laber( cmd[4], cmd_num, 1), 2);
+		if(ret < 0) printf("run failed\n");
 	}
 	else if(!strncmp( cmd, "get ", 4))
 	{
-		printf("get ccor test switch status is :%s\n", get_status( cmd[4], "ccor test switch")?"ON":"OFF");
+		if(cmd[4] == 'P')
+		{
+			cmd_num = cmd[5] - '0';
+			ret = cmd_num;
+			printf("%d\n", get_status_from_num( 'P', cmd_num));	//BUG,使用一个char去接受序列号会产生只能有9个数据大小
+		}
+		else if(cmd[4] == 'S')
+		{
+			cmd_num = cmd[5] - '0';
+			ret = get_status_from_num( cmd[4], cmd_num);	//BUG,使用一个char去接受序列号会产生只能有9个数据大小
+			printf("ret = %d\n", ret);
+			if(ret == 3) 
+				printf("Don`t Know\n");
+			else
+				printf("%s\n", ret?"ON":"OFF");
+		}
+		
+	}
+	else if(!strncmp( cmd, "set ", 4))
+	{
+		//set: P2 253
+		cmd_num = cmd[5] - '0';
+		value = atoi(cmd+7);
+		ret = ioctl(device_fd, get_cmd_form_property_laber( cmd[4], cmd_num, 1), value);
+	}
+	else if(!strncmp( cmd, "help", 4))
+	{
+		ret = -3;
+		printf("[cmd] [type][num] [other]\n");
+		printf("such as: set P1 222\n");
+		printf("such as: open S1\n");
+		printf("such as: close S2\n");
+		printf("such as: run R1\n");
+		printf("such as: get R1\n");
 	}
 	else 
 		printf("bad cmd\n");
-	return 0;
+	return ret;
 }
 
 
